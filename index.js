@@ -21,15 +21,23 @@ const checkDomainQueue = new Bull('check-domain', {
     },
   })
 
+const checkDomainStatus = async(domain, retry=0) => {
+    try{
+        await axios.get(`${domain.domain}`, {timeout: 900})
+        console.log(`${domain.domain} site is up`)
+    }catch(error){
+        if(retry > domain.retries){
+            console.log(`${domain.domain} site is down`)
+        }else{
+            checkDomainStatus(domain, retry+1)
+        }
+    }
+}
+
 checkDomainQueue.process(async (job, done) => {
     const { domain } = job.data
 
-    try{
-        await axios.get(`${domain.domain}`, {timeout: 2000})
-        console.log(`${domain.domain} site is up`)
-    }catch(error){
-        console.log(`${domain.domain} site is down`)
-    }
+    await checkDomainStatus(domain)
     
     const now = Math.floor(Date.now() / 1000);
     await Domains.findOneAndUpdate(
@@ -40,7 +48,7 @@ checkDomainQueue.process(async (job, done) => {
     done();
 })
 
-cron.schedule('* * * * * *', async () => {
+cron.schedule('*/10 * * * * *', async () => {
     try{
         const domains = await Domains.find()
         const now = Math.floor(Date.now() / 1000);
@@ -51,8 +59,7 @@ cron.schedule('* * * * * *', async () => {
             const nextCheck = lastChecked + domain.heartbeat_interval
 
             if(now >= nextCheck){
-                const jobCounts = await checkDomainQueue.getJobCounts();
-                await checkDomainQueue.add({ domain }, { delay: 5000 });
+                await checkDomainQueue.add({ domain });
             }
 
         })
@@ -63,7 +70,6 @@ cron.schedule('* * * * * *', async () => {
 
 // Import domains routes
 const domainRoutes = (await import('./src/routes/domain.js')).default
-
 app.use('/domain', domainRoutes)
 
 app.listen(port, () => {
