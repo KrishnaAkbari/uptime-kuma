@@ -14,7 +14,20 @@ const domainSchema = mongoose.Schema({
         type: Number,
         default: 0
     },
-    lastChecked: {
+    notification_type: {
+        type: String,
+        enum: ['email', 'slack'],
+        required: true
+    },
+    email: {
+        type: String,
+        required: false
+    },
+    slack_webhook_url: {
+        type: String,
+        required: false,
+    },
+    last_checked: {
         type: Number,
         default: 0
     }
